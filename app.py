@@ -21,6 +21,16 @@ from dotenv import load_dotenv
 
 from google_sheets_adapter import read_sheet_to_df
 
+# Centralized cached data loaders
+from loaders import (
+    load_matches,
+    load_players,
+    load_events,
+    load_plays_simple,
+    load_summaries,
+    load_goals_allowed,
+)
+
 # Optional Gemini import (guarded)
 try:
     import google.generativeai as genai
@@ -331,120 +341,7 @@ def _minute_bucket(x) -> str:
 # ---------------------------------------------------------------------
 # LOADERS
 # ---------------------------------------------------------------------
-@st.cache_data(ttl=300)
-def load_matches() -> pd.DataFrame:
-    df = read_sheet_to_df(SPREADSHEET_KEY, "matches")
-    df = _strip_and_alias_matches(df)
-    if "date" in df: df["date"] = pd.to_datetime(df["date"], errors="coerce")
-    if "division_game" in df: df["division_game"] = _bool_col(df["division_game"])
-    if "home_away" in df:
-        df["home_away"] = (df["home_away"].astype(str).str.strip().str.lower()
-                           .map({"h":"H","home":"H","a":"A","away":"A"}))
-    for c in ["goals_for","goals_against","shots_for","shots_against","saves"]:
-        if c in df: df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0).astype(int)
-    if {"goals_for","goals_against"}.issubset(df):
-        df["result"] = df.apply(lambda r: "W" if r.goals_for>r.goals_against else ("L" if r.goals_for<r.goals_against else "D"), axis=1)
-    if "match_id" not in df: df["match_id"] = df.index.astype(str)
-    else: df["match_id"] = df["match_id"].astype(str)
-    return df
-
-@st.cache_data(ttl=300)
-def load_players() -> pd.DataFrame:
-    df = read_sheet_to_df(SPREADSHEET_KEY, "players")
-    if "jersey" in df: df["jersey"] = pd.to_numeric(df["jersey"], errors="coerce").fillna(0).astype(int)
-    if "player_id" in df: df["player_id"] = df["player_id"].astype(str)
-    return df
-
-@st.cache_data(ttl=300)
-def load_events() -> pd.DataFrame:
-    df = read_sheet_to_df(SPREADSHEET_KEY, "events")
-    df.columns = [c.strip().lower() for c in df.columns]
-    if "assist" in df.columns and "assists" not in df.columns:
-        df = df.rename(columns={"assist":"assists"})
-    for k in ["event_id","match_id","player_id"]:
-        if k in df.columns: df[k] = df[k].astype(str)
-    for n in ["goals","assists","shots","fouls"]:
-        if n not in df.columns: df[n] = 0
-        df[n] = pd.to_numeric(df[n], errors="coerce").fillna(0).astype(int)
-    return df
-
-@st.cache_data(ttl=300)
-def load_plays_simple() -> pd.DataFrame:
-    try:
-        raw = read_sheet_to_df(SPREADSHEET_KEY, "plays")
-    except Exception:
-        return pd.DataFrame()
-    raw.columns = [c.lower().strip() for c in raw.columns]
-    if "play type" in raw and "play_type" not in raw: raw = raw.rename(columns={"play type":"play_type"})
-    if "set_piece" in raw:
-        sp = raw["set_piece"].astype(str).str.strip().str.lower()
-        raw["set_piece"] = sp.replace({"direct":"fk_direct","indirect":"fk_indirect","fk direct":"fk_direct","fk indirect":"fk_indirect"})
-    raw["taker_notes"] = raw.get("taker_id","").astype(str).fillna("")
-    if "goal_created" in raw:
-        raw["goal_created"] = (raw["goal_created"].astype(str).str.strip().str.lower()
-                               .map({"true":True,"yes":True,"y":True,"1":True,"no":False,"false":False,"0":False})
-                               .fillna(False))
-    for k in ["match_id","play_call_id","play_type"]:
-        if k in raw: raw[k] = raw[k].astype(str).fillna("").str.strip()
-    keep = [c for c in ["match_id","set_piece","play_call_id","play_type","taker_notes","goal_created"] if c in raw]
-    return raw[keep]
-
-@st.cache_data(ttl=300)
-def load_summaries() -> pd.DataFrame:
-    # Support both 'summary' and 'summaries'
-    for tab in ("summary", "summaries"):
-        try:
-            df = read_sheet_to_df(SPREADSHEET_KEY, tab)
-            df.columns = [str(c).strip().lower() for c in df.columns]
-            if "match_id" in df.columns:
-                df["match_id"] = df["match_id"].astype(str)
-            return df
-        except Exception:
-            continue
-    return pd.DataFrame()
-
-@st.cache_data(ttl=300)
-def load_goals_allowed() -> pd.DataFrame:
-    """
-    Read 'goals_allowed' tab.
-    Expected columns (case-insensitive, flexible):
-      - match_id (str)
-      - goal_id (str)  [optional]
-      - description or description_of_goal (str)  [optional]
-      - goalie_player_id / goalkeeper_player_id / goalie (player_id as str)
-      - minute (int) [optional]
-      - situation (str) [optional: Open Play, Set Piece, CK, FK, PK, etc.]
-    """
-    try:
-        df = read_sheet_to_df(SPREADSHEET_KEY, "goals_allowed")
-    except Exception:
-        return pd.DataFrame()
-
-    df.columns = [str(c).strip().lower() for c in df.columns]
-
-    if "description_of_goal" in df.columns and "description" not in df.columns:
-        df = df.rename(columns={"description_of_goal": "description"})
-    for cand in ["goalie_player_id","goalkeeper_player_id","goalie"]:
-        if cand in df.columns:
-            df = df.rename(columns={cand: "goalie_player_id"})
-            break
-    if "goalie_player_id" not in df.columns:
-        df["goalie_player_id"] = ""
-
-    for k in ["match_id","goal_id","goalie_player_id"]:
-        if k in df.columns:
-            df[k] = df[k].astype(str)
-    if "minute" in df.columns:
-        df["minute"] = pd.to_numeric(df["minute"], errors="coerce")
-    else:
-        df["minute"] = pd.NA
-    if "situation" not in df.columns:
-        df["situation"] = ""
-    if "description" not in df.columns:
-        df["description"] = ""
-
-    return df
-
+# (moved to loaders.py)
 # ---------------------------------------------------------------------
 # RANKINGS HELPERS (for D2 Rank KPI)
 # ---------------------------------------------------------------------
@@ -1532,7 +1429,7 @@ def render_set_piece_analysis_from_plays(plays_df: pd.DataFrame, matches: pd.Dat
 
     # ---- KPI tiles (mobile-friendly card grid) ----
     # Show values for current filters (df) and season totals for clarity
-    season_df = load_plays_simple()
+    season_df = load_plays_simple(SPREADSHEET_KEY)
     season_df.columns = [c.strip().lower() for c in season_df.columns]
     if "set_piece" not in season_df.columns:
         season_df["set_piece"] = ""
@@ -1906,12 +1803,12 @@ def render_game_drilldown(match_id: str, matches: pd.DataFrame, players: pd.Data
 # ---------------------------------------------------------------------
 # MAIN
 # ---------------------------------------------------------------------
-matches = load_matches()
-players = load_players()
-events = load_events()
-plays_simple = load_plays_simple()
-summaries = load_summaries()
-goals_allowed = load_goals_allowed()
+matches = load_matches(SPREADSHEET_KEY)
+players = load_players(SPREADSHEET_KEY)
+events = load_events(SPREADSHEET_KEY)
+plays_simple = load_plays_simple(SPREADSHEET_KEY)
+summaries = load_summaries(SPREADSHEET_KEY)
+goals_allowed = load_goals_allowed(SPREADSHEET_KEY)
 
 
 # Sidebar (clean labels)
