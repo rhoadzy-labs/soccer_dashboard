@@ -53,7 +53,7 @@ def _groq_chat(system_prompt: str, user_prompt: str, *, temperature: float = 0.2
 
     client = Groq(api_key=api_key)
     completion = client.chat.completions.create(
-        model="llama-3.1-70b-versatile",
+        model=os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"),
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
