@@ -17,6 +17,7 @@ import streamlit as st
 
 from pages.home_tabs.goals_allowed import render_home_tab_goals_allowed
 from pages.home_tabs.leaders import render_home_tab_leaders
+from pages.home_tabs.set_pieces import render_home_tab_set_pieces
 from pages.home_tabs.trends import render_home_tab_trends
 
 
@@ -202,4 +203,9 @@ def render_home(
         )
 
     elif selected_tab == "Set Pieces":
-        handlers.render_set_piece_analysis_from_plays(plays_view, matches_view, players)
+        render_home_tab_set_pieces(
+            plays_view,
+            matches_view,
+            players,
+            render_set_piece_analysis_from_plays=handlers.render_set_piece_analysis_from_plays,
+        )
