@@ -1767,7 +1767,6 @@ handlers = HomeHandlers(
     render_points_leaderboard=render_points_leaderboard,
     render_goals_allowed_analysis=render_goals_allowed_analysis,
     render_set_piece_analysis_from_plays=render_set_piece_analysis_from_plays,
-    render_game_drilldown=render_game_drilldown,
     qparams_set=_qparams_set,
     format_date=_format_date,
     generate_ai_game_summary=generate_ai_game_summary,
