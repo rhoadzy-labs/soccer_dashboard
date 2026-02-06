@@ -16,6 +16,8 @@ except Exception:
 import altair as alt
 import pandas as pd
 import streamlit as st
+
+from pages.home import HomeHandlers, render_home
 import requests
 from dotenv import load_dotenv
 
@@ -1908,206 +1910,33 @@ except Exception:
 if match_id:
     render_game_drilldown(match_id, matches_view, players, events_view, plays_view, summaries)
 else:
-    st.header("Milton Varsity Boys Soccer Team 2025")
-
-    # Data health panel
-    with st.expander("Data Health", expanded=False):
-        c1,c2,c3,c4,c5,c6 = st.columns(6)
-        c1.metric("Matches", len(matches))
-        c2.metric("Players", len(players))
-        c3.metric("Events", len(events))
-        c4.metric("Plays", len(plays_simple))
-        c5.metric("Summaries", len(summaries))
-        c6.metric("Goals Allowed", len(goals_allowed))
-        st.caption("Sheets cached for up to 5 minutes. Use Refresh in sidebar to reload.")
-        if "cache_cleared_at" in st.session_state:
-            st.caption(f"Last manual refresh: {st.session_state['cache_cleared_at']}")
-        if st.button("Refresh now"):
-            st.cache_data.clear(); st.rerun()
-
-    _team_kpis(matches_view, d2_rank=our_rank, compact=compact)
-
-
-    tab_labels = ["Games","Trends","Leaders","Goals Allowed","Set Pieces"]
-    if "main_tab_radio" not in st.session_state:
-        st.session_state["main_tab_radio"] = tab_labels[0]
-    selected_tab = st.radio(
-        "Main tabs",
-        tab_labels,
-        horizontal=True,
-        key="main_tab_radio",
-        label_visibility="collapsed",
+    handlers = HomeHandlers(
+        team_kpis=_team_kpis,
+        render_games_table=render_games_table,
+        render_points_leaderboard=render_points_leaderboard,
+        render_goals_allowed_analysis=render_goals_allowed_analysis,
+        render_set_piece_analysis_from_plays=render_set_piece_analysis_from_plays,
+        build_comparison_trend_frame=build_comparison_trend_frame,
+        build_individual_game_trends=build_individual_game_trends,
+        generate_ai_team_analysis=generate_ai_team_analysis,
+        ai_user_error_message=_ai_user_error_message,
+        render_ai_debug=_render_ai_debug,
     )
 
-    if selected_tab == "Games":
-        render_games_table(matches_view, compact=compact)
-        # Place AI Chat Assistant under the game schedule
-        st.divider()
-        st.subheader("AI Assistant")
-        st.caption("Ask questions about team performance and season trends")
+    render_home(
+        title="Milton Varsity Boys Soccer Team 2025",
+        matches=matches,
+        players=players,
+        events=events,
+        plays_simple=plays_simple,
+        summaries=summaries,
+        goals_allowed=goals_allowed,
+        matches_view=matches_view,
+        events_view=events_view,
+        plays_view=plays_view,
+        ga_view=ga_view,
+        our_rank=our_rank,
+        compact=compact,
+        handlers=handlers,
+    )
 
-        # (Removed next opponent preview; AI limited to known sheet data)
-
-        # Initialize chat history in session state
-        if "ai_chat_history" not in st.session_state:
-            st.session_state.ai_chat_history = []
-
-        # Display chat history
-        chat_container = st.container()
-        with chat_container:
-            for message in st.session_state.ai_chat_history:
-                if message["role"] == "user":
-                    st.markdown(f"""
-                    <div class='ai-chat-message ai-chat-user'>
-                        <strong>You:</strong> {message['content']}
-                    </div>
-                    """, unsafe_allow_html=True)
-                else:
-                    st.markdown(f"""
-                    <div class='ai-chat-message ai-chat-assistant'>
-                        <strong>AI:</strong> {message['content']}
-                    </div>
-                    """, unsafe_allow_html=True)
-        _render_ai_debug()
-
-        # Chat input
-        c1, c2 = st.columns([4, 1])
-        with c1:
-            user_input = st.text_input(
-                "Ask a question about the team:",
-                placeholder="e.g., 'Summarize our season performance'",
-                key="ai_chat_input_games",
-            )
-        with c2:
-            send_button = st.button("Send", type="primary")
-
-        # Quick action buttons (known data only)
-        st.markdown("**Quick Actions:**")
-        q2, q3 = st.columns(2)
-        with q2:
-            if st.button("Season Summary", help="Get a comprehensive overview of your season"):
-                user_input = (
-                    "Provide a comprehensive summary of our season performance including strengths, "
-                    "weaknesses, and key insights"
-                )
-                send_button = True
-        with q3:
-            if st.button("Performance Trends", help="Analyze trends and identify improvement areas"):
-                user_input = "Analyze our performance trends and identify areas for improvement"
-                send_button = True
-
-        # Process user input
-        if send_button and user_input and user_input.strip():
-            # Add user message to history
-            st.session_state.ai_chat_history.append({"role": "user", "content": user_input})
-
-            # Show loading spinner
-            with st.spinner("AI is analyzing..."):
-                # Known-data analysis only
-                ai_response = generate_ai_team_analysis(
-                    user_input,
-                    matches_view,
-                    players,
-                    events_view,
-                    plays_view,
-                    ga_view,
-                )
-
-            # Add AI response to history
-            if ai_response:
-                st.session_state.ai_chat_history.append({"role": "assistant", "content": ai_response})
-            else:
-                st.session_state.ai_chat_history.append({
-                    "role": "assistant",
-                    "content": (
-                        _ai_user_error_message(
-                            "I'm sorry, I couldn't generate a response. "
-                            "Please make sure you have a Gemini API key configured and try again."
-                        )
-                    ),
-                })
-
-            # Clear input and rerun to show new message
-            st.rerun()
-
-        # Clear chat button
-        if st.button("Clear Chat History"):
-            st.session_state.ai_chat_history = []
-            st.rerun()
-
-    elif selected_tab == "Trends":
-        if matches_view.empty:
-            st.info("No games yet to build trends.")
-        else:
-            # Comparison between all games vs last 3 games
-            comparison_df = build_comparison_trend_frame(matches_view)
-            individual_df = build_individual_game_trends(matches_view)
-
-            st.subheader("All Games vs Last 3 Games Comparison")
-
-            # Display comparison table
-            st.dataframe(
-                comparison_df.round(2),
-                use_container_width=True,
-                hide_index=True,
-                height=200
-            )
-
-            # Create comparison charts
-            label_axis = alt.Axis(labelAngle=-45) if compact else alt.Axis()
-            h = 220
-
-            # Melt the comparison data for better charting
-            comparison_melted = comparison_df.melt(
-                id_vars=["Metric"],
-                value_vars=["All Games", "Last 3 Games"],
-                var_name="Period",
-                value_name="Value"
-            )
-
-            # Comparison bar chart
-            comparison_chart = alt.Chart(comparison_melted).mark_bar().encode(
-                x=alt.X("Metric:N", title="Metric", axis=label_axis),
-                y=alt.Y("Value:Q", title="Value"),
-                color=alt.Color("Period:N", title="Period"),
-                tooltip=["Metric", "Period", "Value"]
-            ).properties(height=h)
-            st.altair_chart(comparison_chart, use_container_width=True)
-
-            st.subheader("Individual Game Performance")
-
-            # Individual game trends
-            for col, title in [
-                ("GF", "Goals For"),
-                ("GA", "Goals Against"),
-                ("Save%", "Save %"),
-                ("GF Conv%", "Conversion % (For)"),
-                ("GA Conv%", "Conversion % (Against)")
-            ]:
-                # Create chart with different colors for last 3 games
-                chart = alt.Chart(individual_df).mark_circle(size=60).encode(
-                    x=alt.X("Game #:O", title="Game Number"),
-                    y=alt.Y(f"{col}:Q", title=title),
-                    color=alt.Color("Last 3 Games:N",
-                                  scale=alt.Scale(domain=[True, False], range=["#ff6b6b", "#4ecdc4"]),
-                                  title="Last 3 Games"),
-                    tooltip=["Game #", "Date", "Opponent", col, "Last 3 Games"]
-                ).properties(height=h)
-
-                # Add trend line
-                trend_line = alt.Chart(individual_df).mark_line(color="gray", opacity=0.5).encode(
-                    x=alt.X("Game #:O"),
-                    y=alt.Y(f"{col}:Q")
-                ).properties(height=h)
-
-                final_chart = (chart + trend_line).resolve_scale(color="independent")
-                st.altair_chart(final_chart, use_container_width=True)
-
-    elif selected_tab == "Leaders":
-        render_points_leaderboard(events_view, players, top_n=5, compact=compact)
-
-    elif selected_tab == "Goals Allowed":
-        render_goals_allowed_analysis(ga_view, matches_view, players, compact=compact)
-
-    elif selected_tab == "Set Pieces":
-        render_set_piece_analysis_from_plays(plays_view, matches_view, players)
