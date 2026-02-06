@@ -16,6 +16,8 @@ except Exception:
 import altair as alt
 import pandas as pd
 import streamlit as st
+
+from app_pages.home import HomeHandlers, render_home
 import requests
 from dotenv import load_dotenv
 
@@ -1316,11 +1318,11 @@ def render_points_leaderboard(events: pd.DataFrame, players: pd.DataFrame, top_n
 
     if compact:
         show = top[["", "name", "points"]].rename(columns={"": " "})
-        st.dataframe(show, use_container_width=True, hide_index=True, height=180)
+        st.dataframe(show, width="stretch", hide_index=True, height=180)
     else:
         st.dataframe(
             top[["","jersey","name","goals","assists","points"]],
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
             height=210
         )
@@ -1340,7 +1342,7 @@ def render_points_leaderboard(events: pd.DataFrame, players: pd.DataFrame, top_n
                 y=alt.Y("points:Q", title="Points"),
                 tooltip=["name","goals","assists","points"]
             ).properties(height=h)
-            st.altair_chart(chart_pts, use_container_width=True)
+            st.altair_chart(chart_pts, width="stretch")
         with c2:
             melted = top_for_chart.melt(
                 id_vars=["name","points"],
@@ -1354,12 +1356,12 @@ def render_points_leaderboard(events: pd.DataFrame, players: pd.DataFrame, top_n
                 color=alt.Color("Stat:N", title=""),
                 tooltip=["name","Stat","Value"]
             ).properties(height=h)
-            st.altair_chart(chart_breakdown, use_container_width=True)
+            st.altair_chart(chart_breakdown, width="stretch")
 
     with st.expander("View full team leaderboard"):
         st.dataframe(
             full[cols_full],
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
             height=420
         )
@@ -1523,7 +1525,7 @@ def render_set_piece_analysis_from_plays(plays_df: pd.DataFrame, matches: pd.Dat
 
     # ---- Table (unchanged) ----
     tbl = set_piece_leaderboard_from_plays(df)
-    st.dataframe(tbl, use_container_width=True, hide_index=True)
+    st.dataframe(tbl, width="stretch", hide_index=True)
 
     # ---- Chart (unchanged) ----
     if not tbl.empty:
@@ -1534,7 +1536,7 @@ def render_set_piece_analysis_from_plays(plays_df: pd.DataFrame, matches: pd.Dat
             color=alt.Color("set_piece:N", title="Type"),
             tooltip=list(tbl.columns),
         ).properties(height=280)
-        st.altair_chart(chart, use_container_width=True)
+        st.altair_chart(chart, width="stretch")
 
     # ---- AI Insights ----
     state_key = "ai_set_piece_summary"
@@ -1564,36 +1566,6 @@ def render_set_piece_analysis_from_plays(plays_df: pd.DataFrame, matches: pd.Dat
         _render_ai_debug()
 
 
-
-def render_coach_notes_and_summary(match_id: str,
-                                   matches: pd.DataFrame,
-                                   summaries: pd.DataFrame,
-                                   events: pd.DataFrame):
-    st.subheader("Coach Notes & Summary")
-    mrow = matches.loc[matches["match_id"] == match_id]
-    m = mrow.iloc[0] if not mrow.empty else pd.Series(dtype=object)
-
-    srow = None
-    if not summaries.empty and "match_id" in summaries.columns:
-        srow_df = summaries.loc[summaries["match_id"] == str(match_id)]
-        if not srow_df.empty:
-            srow = srow_df.iloc[0]
-
-    if srow is not None:
-        show = srow.drop(labels=[c for c in ["match_id"] if c in srow.index])
-        nice = show.rename(index=lambda k: k.replace("_", " ").title())
-        st.markdown("**Coach Notes (from sheet)**")
-        st.dataframe(nice.to_frame("Value"), use_container_width=True, hide_index=False, height=280)
-    else:
-        st.info("No coach notes yet for this game. Add a row in the `summary` tab with this match_id.")
-
-    ai_txt = generate_ai_game_summary(m, srow, events)
-    if ai_txt:
-        st.markdown("**AI Game Summary**")
-        st.write(ai_txt)
-    else:
-        st.caption(_ai_user_error_message("AI summary unavailable (no Gemini key set or not enough context)."))
-        _render_ai_debug()
 
 def render_goals_allowed_analysis(ga_df: pd.DataFrame,
                                   matches: pd.DataFrame,
@@ -1629,7 +1601,7 @@ def render_goals_allowed_analysis(ga_df: pd.DataFrame,
 
     cols_show = [c for c in ["date","opponent","minute","minute_bucket","situation","goalie_name","description","goal_id"] if c in view.columns]
     st.dataframe(view[cols_show].sort_values(["date","minute"], ascending=[True, True]),
-                 use_container_width=True, hide_index=True, height=320)
+                 width="stretch", hide_index=True, height=320)
     # CSV download for goals allowed table
     try:
         csv = view[cols_show].to_csv(index=False).encode('utf-8')
@@ -1682,8 +1654,8 @@ def render_goals_allowed_analysis(ga_df: pd.DataFrame,
         tooltip=["goalie_name","count"]
     ).properties(height=h)
 
-    st.altair_chart(chart_sit | chart_min, use_container_width=True)
-    st.altair_chart(chart_gk, use_container_width=True)
+    st.altair_chart(chart_sit | chart_min, width="stretch")
+    st.altair_chart(chart_gk, width="stretch")
 
     state_key = "ai_conceded_summary"
     error_key = "ai_conceded_error"
@@ -1711,95 +1683,6 @@ def render_goals_allowed_analysis(ga_df: pd.DataFrame,
         st.caption(_ai_user_error_message(conceded_error))
         _render_ai_debug()
 
-def render_game_drilldown(match_id: str, matches: pd.DataFrame, players: pd.DataFrame, events: pd.DataFrame, plays_df: pd.DataFrame, summaries: pd.DataFrame):
-    row = matches.loc[matches["match_id"] == match_id]
-    if row.empty:
-        st.error("Match not found.")
-        if st.button("Back to Dashboard"):
-            _qparams_set(); st.rerun()
-        return
-    m = row.iloc[0]
-    st.header(f"Game View – {_format_date(m.get('date',''))} vs {m.get('opponent','')} ({m.get('home_away','')})")
-    st.caption(f"Division: {'Yes' if m.get('division_game', False) else 'No'} | Result: {m.get('result','')} | Score: {m.get('goals_for','')}-{m.get('goals_against','')}")
-    
-    # ============================================================================
-    # GAME RECORDING URL DISPLAY
-    # ============================================================================
-    # Check for game recording URL in multiple possible column names from Google Sheets
-    # Supports: 'url', 'recording_url', 'game_url', 'video_url', 'link'
-    url = None
-    for url_col in ['url', 'recording_url', 'game_url', 'video_url', 'link']:
-        if m.get(url_col) and str(m.get(url_col)).strip():
-            url = str(m.get(url_col)).strip()
-            break
-    
-    if url:
-        # Auto-add https:// protocol if missing for proper link functionality
-        if not url.startswith(('http://', 'https://')):
-            url = 'https://' + url
-            
-        # Display styled recording link with blue info box design
-        st.markdown(f"""
-        <div style="
-            background: #f0f8ff; 
-            border: 1px solid #4a90e2; 
-            border-radius: 8px; 
-            padding: 12px; 
-            margin: 8px 0;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        ">
-            <span style="font-size: 18px;">📹</span>
-            <div>
-                <strong style="color: #2c3e50;">Game Recording Available</strong><br>
-                <a href="{url}" target="_blank" style="color: #4a90e2; text-decoration: none; font-weight: 500;" title="Click to open game recording in a new tab">
-                    🎥 Watch Game Recording →
-                </a>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    else:
-        # Show info message when no recording URL is available
-        # Note: Both cases show same message for consistency (removed technical details)
-        st.info("📹 No game recording available for this match.")
-
-    by_player = (events.query("match_id == @match_id").copy()
-                 if "match_id" in events.columns else pd.DataFrame())
-    if by_player.empty:
-        base = players[["player_id","name","jersey","position"]].copy()
-        base["shots"]=base["goals"]=base["assists"]=base["points"]=0
-        view = base[["jersey","name","position","shots","goals","assists","points"]]
-    else:
-        sums = by_player.groupby("player_id", as_index=False)[["shots","goals","assists"]].sum()
-        sums["points"] = 2*sums["goals"] + sums["assists"]
-        view = sums.set_index("player_id").join(
-            players.set_index("player_id")[["name","jersey","position"]], how="left"
-        ).fillna({"name":"Unknown","position":"","jersey":0})
-        view = view.reset_index()[["jersey","name","position","shots","goals","assists","points"]]
-        view = view.sort_values(["points","goals","shots"], ascending=[False,False,False])
-
-    st.subheader("Per-Player Breakdown")
-    st.dataframe(view, use_container_width=True, hide_index=True)
-
-    st.subheader("Set-Play Attempts (this game)")
-    sp = plays_df.query("match_id == @match_id") if not plays_df.empty else pd.DataFrame()
-    if sp.empty:
-        st.info("No set-play rows for this match.")
-    else:
-        cols = [c for c in ["set_piece","play_call_id","play_type","taker_notes","goal_created"] if c in sp.columns]
-        df_show = sp[cols].rename(columns={"play_call_id":"Play Call"})
-        df_show = df_show[["set_piece","Play Call","play_type","taker_notes","goal_created"]]
-        st.dataframe(df_show, use_container_width=True, hide_index=True)
-
-    st.divider()
-    render_coach_notes_and_summary(match_id, matches, summaries, events)
-
-    st.divider()
-    c1,c2 = st.columns([1,1])
-    if c1.button("Back to Dashboard"): _qparams_set(); st.rerun()
-    c2.markdown(f"[Open this game in a new tab](?match_id={match_id})")
-
 # ---------------------------------------------------------------------
 # MAIN
 # ---------------------------------------------------------------------
@@ -1810,90 +1693,43 @@ plays_simple = load_plays_simple(SPREADSHEET_KEY)
 summaries = load_summaries(SPREADSHEET_KEY)
 goals_allowed = load_goals_allowed(SPREADSHEET_KEY)
 
+from data.views import apply_match_filters, derive_related_views, get_match_id
+from ui.sidebar import render_sidebar
+
 
 # Sidebar (clean labels)
-with st.sidebar:
-    st.title("HS Soccer")
-    if st.button("Dashboard (Home)"):
-        _qparams_set(); st.rerun()
-
-    # Read qp for initial toggle values
-    qp_init = _qparams_get()
-    COMPACT_DEFAULT = True
-    compact_init = _qp_bool(qp_init.get("compact"), COMPACT_DEFAULT)
-    div_only_init = _qp_bool(qp_init.get("div_only"), False)
-
-    compact = st.toggle("Compact mode", value=compact_init, help="Phone-friendly layout")
-    div_only = st.checkbox("Division games only", value=div_only_init)
-
-    # Global filters
-    st.subheader("Filters")
-    opponent_q = st.text_input("Opponent contains", value=str(qp_init.get("opp","")))
-    ha_opt = st.selectbox("Home/Away", ["Any","Home","Away"], index={"any":0,"home":1,"away":2}.get(str(qp_init.get("ha","any")).lower(),0))
-
-    st.link_button("Open Schedule", SBLIVE_SCHEDULE_URL)
-    st.link_button("Open Rankings (D2)", SBLIVE_RANKINGS_URL)
-
-    # Sync toggles/filters to query params only when they differ
-    try:
-        desired = {
-            "compact": str(compact).lower(),
-            "div_only": str(div_only).lower(),
-            "opp": opponent_q.strip(),
-            # Store full text so "Any" is not mistaken for Away
-            "ha": ha_opt.lower() if ha_opt else "any",
-        }
-
-        # Only update if any difference
-        diffs = []
-        for k, v in desired.items():
-            curv = qp_init.get(k)
-            if isinstance(curv, list): curv = curv[0] if curv else None
-            if (curv or "") != (v or ""):
-                diffs.append(k)
-        if diffs:
-            _qparams_merge_update(**desired)
-            st.rerun()
-    except Exception:
-        pass
+compact, div_only = render_sidebar(
+    qparams_get=_qparams_get,
+    qp_bool=_qp_bool,
+    qparams_set=_qparams_set,
+    qparams_merge_update=_qparams_merge_update,
+    schedule_url=SBLIVE_SCHEDULE_URL,
+    rankings_url=SBLIVE_RANKINGS_URL,
+)
 
 # Apply filters (division/date/opponent/H-A)
-matches_view = matches.copy()
-if div_only and not matches_view.empty and "division_game" in matches_view:
-    matches_view = matches_view.query("division_game == True")
-
 qp = _qparams_get()
-opp_filter = str(qp.get("opp",""))
-if isinstance(opp_filter, list): opp_filter = opp_filter[0]
-opp_filter = opp_filter.strip()
-if opp_filter and not matches_view.empty and "opponent" in matches_view:
-    matches_view = matches_view[matches_view["opponent"].astype(str).str.contains(opp_filter, case=False, na=False)]
+opp_filter = str(qp.get("opp", ""))
+if isinstance(opp_filter, list):
+    opp_filter = opp_filter[0]
 
-ha_val = str(qp.get("ha","any")).lower()
-if isinstance(ha_val, list): ha_val = ha_val[0]
-if ha_val in ("h","home","a","away") and not matches_view.empty and "home_away" in matches_view:
-    want = "H" if ha_val.startswith("h") else "A"
-    matches_view = matches_view[matches_view["home_away"].astype(str).str.upper() == want]
+ha_val = str(qp.get("ha", "any")).lower()
+if isinstance(ha_val, list):
+    ha_val = ha_val[0]
 
-
+matches_view = apply_match_filters(matches, div_only=div_only, opp_filter=opp_filter, ha_val=ha_val)
 
 # Derive related views by match_id
-if not matches_view.empty and "match_id" in matches_view:
-    keep = set(matches_view["match_id"].astype(str))
-    events_view = events[events["match_id"].astype(str).isin(keep)] if "match_id" in events.columns else events
-    plays_view  = plays_simple[plays_simple["match_id"].astype(str).isin(keep)] if not plays_simple.empty else plays_simple
-    ga_view     = goals_allowed[goals_allowed["match_id"].astype(str).isin(keep)] if not goals_allowed.empty else goals_allowed
-else:
-    events_view, plays_view, ga_view = events, plays_simple, goals_allowed
+events_view, plays_view, ga_view = derive_related_views(
+    matches_view=matches_view,
+    events=events,
+    plays_simple=plays_simple,
+    goals_allowed=goals_allowed,
+)
 
 # Drill-in param
 qp = _qparams_get()
-match_id: Optional[str] = None
-try:
-    raw = qp.get("match_id")
-    match_id = raw[0] if isinstance(raw, list) else raw
-except Exception:
-    pass
+match_id = get_match_id(qp)
 
 # D2 rank (KPI only)
 our_rank = None
@@ -1904,204 +1740,42 @@ try:
 except Exception:
     our_rank = None
 
+from app_context import AppContext
+from router import route
+
 # Routing
-if match_id:
-    render_game_drilldown(match_id, matches_view, players, events_view, plays_view, summaries)
-else:
-    st.header("Milton Varsity Boys Soccer Team 2025")
+ctx = AppContext(
+    compact=compact,
+    div_only=div_only,
+    matches=matches,
+    players=players,
+    events=events,
+    plays_simple=plays_simple,
+    summaries=summaries,
+    goals_allowed=goals_allowed,
+    matches_view=matches_view,
+    events_view=events_view,
+    plays_view=plays_view,
+    ga_view=ga_view,
+    match_id=match_id,
+    our_rank=our_rank,
+)
 
-    # Data health panel
-    with st.expander("Data Health", expanded=False):
-        c1,c2,c3,c4,c5,c6 = st.columns(6)
-        c1.metric("Matches", len(matches))
-        c2.metric("Players", len(players))
-        c3.metric("Events", len(events))
-        c4.metric("Plays", len(plays_simple))
-        c5.metric("Summaries", len(summaries))
-        c6.metric("Goals Allowed", len(goals_allowed))
-        st.caption("Sheets cached for up to 5 minutes. Use Refresh in sidebar to reload.")
-        if "cache_cleared_at" in st.session_state:
-            st.caption(f"Last manual refresh: {st.session_state['cache_cleared_at']}")
-        if st.button("Refresh now"):
-            st.cache_data.clear(); st.rerun()
+handlers = HomeHandlers(
+    team_kpis=_team_kpis,
+    render_games_table=render_games_table,
+    render_points_leaderboard=render_points_leaderboard,
+    render_goals_allowed_analysis=render_goals_allowed_analysis,
+    render_set_piece_analysis_from_plays=render_set_piece_analysis_from_plays,
+    qparams_set=_qparams_set,
+    format_date=_format_date,
+    generate_ai_game_summary=generate_ai_game_summary,
+    build_comparison_trend_frame=build_comparison_trend_frame,
+    build_individual_game_trends=build_individual_game_trends,
+    generate_ai_team_analysis=generate_ai_team_analysis,
+    ai_user_error_message=_ai_user_error_message,
+    render_ai_debug=_render_ai_debug,
+)
 
-    _team_kpis(matches_view, d2_rank=our_rank, compact=compact)
+route(ctx=ctx, handlers=handlers)
 
-
-    tab_labels = ["Games","Trends","Leaders","Goals Allowed","Set Pieces"]
-    if "main_tab_radio" not in st.session_state:
-        st.session_state["main_tab_radio"] = tab_labels[0]
-    selected_tab = st.radio("", tab_labels, horizontal=True, key="main_tab_radio", label_visibility="collapsed")
-
-    if selected_tab == "Games":
-        render_games_table(matches_view, compact=compact)
-        # Place AI Chat Assistant under the game schedule
-        st.divider()
-        st.subheader("AI Assistant")
-        st.caption("Ask questions about team performance and season trends")
-
-        # (Removed next opponent preview; AI limited to known sheet data)
-
-        # Initialize chat history in session state
-        if "ai_chat_history" not in st.session_state:
-            st.session_state.ai_chat_history = []
-
-        # Display chat history
-        chat_container = st.container()
-        with chat_container:
-            for message in st.session_state.ai_chat_history:
-                if message["role"] == "user":
-                    st.markdown(f"""
-                    <div class='ai-chat-message ai-chat-user'>
-                        <strong>You:</strong> {message['content']}
-                    </div>
-                    """, unsafe_allow_html=True)
-                else:
-                    st.markdown(f"""
-                    <div class='ai-chat-message ai-chat-assistant'>
-                        <strong>AI:</strong> {message['content']}
-                    </div>
-                    """, unsafe_allow_html=True)
-        _render_ai_debug()
-
-        # Chat input
-        c1, c2 = st.columns([4, 1])
-        with c1:
-            user_input = st.text_input(
-                "Ask a question about the team:",
-                placeholder="e.g., 'Summarize our season performance'",
-                key="ai_chat_input_games",
-            )
-        with c2:
-            send_button = st.button("Send", type="primary")
-
-        # Quick action buttons (known data only)
-        st.markdown("**Quick Actions:**")
-        q2, q3 = st.columns(2)
-        with q2:
-            if st.button("Season Summary", help="Get a comprehensive overview of your season"):
-                user_input = (
-                    "Provide a comprehensive summary of our season performance including strengths, "
-                    "weaknesses, and key insights"
-                )
-                send_button = True
-        with q3:
-            if st.button("Performance Trends", help="Analyze trends and identify improvement areas"):
-                user_input = "Analyze our performance trends and identify areas for improvement"
-                send_button = True
-
-        # Process user input
-        if send_button and user_input and user_input.strip():
-            # Add user message to history
-            st.session_state.ai_chat_history.append({"role": "user", "content": user_input})
-
-            # Show loading spinner
-            with st.spinner("AI is analyzing..."):
-                # Known-data analysis only
-                ai_response = generate_ai_team_analysis(
-                    user_input,
-                    matches_view,
-                    players,
-                    events_view,
-                    plays_view,
-                    ga_view,
-                )
-
-            # Add AI response to history
-            if ai_response:
-                st.session_state.ai_chat_history.append({"role": "assistant", "content": ai_response})
-            else:
-                st.session_state.ai_chat_history.append({
-                    "role": "assistant",
-                    "content": (
-                        _ai_user_error_message(
-                            "I'm sorry, I couldn't generate a response. "
-                            "Please make sure you have a Gemini API key configured and try again."
-                        )
-                    ),
-                })
-
-            # Clear input and rerun to show new message
-            st.rerun()
-
-        # Clear chat button
-        if st.button("Clear Chat History"):
-            st.session_state.ai_chat_history = []
-            st.rerun()
-
-    elif selected_tab == "Trends":
-        if matches_view.empty:
-            st.info("No games yet to build trends.")
-        else:
-            # Comparison between all games vs last 3 games
-            comparison_df = build_comparison_trend_frame(matches_view)
-            individual_df = build_individual_game_trends(matches_view)
-
-            st.subheader("All Games vs Last 3 Games Comparison")
-
-            # Display comparison table
-            st.dataframe(
-                comparison_df.round(2),
-                use_container_width=True,
-                hide_index=True,
-                height=200
-            )
-
-            # Create comparison charts
-            label_axis = alt.Axis(labelAngle=-45) if compact else alt.Axis()
-            h = 220
-
-            # Melt the comparison data for better charting
-            comparison_melted = comparison_df.melt(
-                id_vars=["Metric"],
-                value_vars=["All Games", "Last 3 Games"],
-                var_name="Period",
-                value_name="Value"
-            )
-
-            # Comparison bar chart
-            comparison_chart = alt.Chart(comparison_melted).mark_bar().encode(
-                x=alt.X("Metric:N", title="Metric", axis=label_axis),
-                y=alt.Y("Value:Q", title="Value"),
-                color=alt.Color("Period:N", title="Period"),
-                tooltip=["Metric", "Period", "Value"]
-            ).properties(height=h)
-            st.altair_chart(comparison_chart, use_container_width=True)
-
-            st.subheader("Individual Game Performance")
-
-            # Individual game trends
-            for col, title in [
-                ("GF", "Goals For"),
-                ("GA", "Goals Against"),
-                ("Save%", "Save %"),
-                ("GF Conv%", "Conversion % (For)"),
-                ("GA Conv%", "Conversion % (Against)")
-            ]:
-                # Create chart with different colors for last 3 games
-                chart = alt.Chart(individual_df).mark_circle(size=60).encode(
-                    x=alt.X("Game #:O", title="Game Number"),
-                    y=alt.Y(f"{col}:Q", title=title),
-                    color=alt.Color("Last 3 Games:N",
-                                  scale=alt.Scale(domain=[True, False], range=["#ff6b6b", "#4ecdc4"]),
-                                  title="Last 3 Games"),
-                    tooltip=["Game #", "Date", "Opponent", col, "Last 3 Games"]
-                ).properties(height=h)
-
-                # Add trend line
-                trend_line = alt.Chart(individual_df).mark_line(color="gray", opacity=0.5).encode(
-                    x=alt.X("Game #:O"),
-                    y=alt.Y(f"{col}:Q")
-                ).properties(height=h)
-
-                final_chart = (chart + trend_line).resolve_scale(color="independent")
-                st.altair_chart(final_chart, use_container_width=True)
-
-    elif selected_tab == "Leaders":
-        render_points_leaderboard(events_view, players, top_n=5, compact=compact)
-
-    elif selected_tab == "Goals Allowed":
-        render_goals_allowed_analysis(ga_view, matches_view, players, compact=compact)
-
-    elif selected_tab == "Set Pieces":
-        render_set_piece_analysis_from_plays(plays_view, matches_view, players)
