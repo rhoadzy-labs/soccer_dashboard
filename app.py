@@ -1931,7 +1931,13 @@ else:
     tab_labels = ["Games","Trends","Leaders","Goals Allowed","Set Pieces"]
     if "main_tab_radio" not in st.session_state:
         st.session_state["main_tab_radio"] = tab_labels[0]
-    selected_tab = st.radio("", tab_labels, horizontal=True, key="main_tab_radio", label_visibility="collapsed")
+    selected_tab = st.radio(
+        "Main tabs",
+        tab_labels,
+        horizontal=True,
+        key="main_tab_radio",
+        label_visibility="collapsed",
+    )
 
     if selected_tab == "Games":
         render_games_table(matches_view, compact=compact)
