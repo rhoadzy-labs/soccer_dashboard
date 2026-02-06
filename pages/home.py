@@ -15,6 +15,7 @@ from typing import Callable, Optional
 import pandas as pd
 import streamlit as st
 
+from pages.home_tabs.leaders import render_home_tab_leaders
 from pages.home_tabs.trends import render_home_tab_trends
 
 
@@ -183,7 +184,12 @@ def render_home(
             build_individual_game_trends=handlers.build_individual_game_trends,
         )
     elif selected_tab == "Leaders":
-        handlers.render_points_leaderboard(events_view, players, top_n=5, compact=compact)
+        render_home_tab_leaders(
+            events_view,
+            players,
+            compact=compact,
+            render_points_leaderboard=handlers.render_points_leaderboard,
+        )
 
     elif selected_tab == "Goals Allowed":
         handlers.render_goals_allowed_analysis(ga_view, matches_view, players, compact=compact)
