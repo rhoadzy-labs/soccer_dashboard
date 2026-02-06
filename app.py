@@ -1318,11 +1318,11 @@ def render_points_leaderboard(events: pd.DataFrame, players: pd.DataFrame, top_n
 
     if compact:
         show = top[["", "name", "points"]].rename(columns={"": " "})
-        st.dataframe(show, use_container_width=True, hide_index=True, height=180)
+        st.dataframe(show, width="stretch", hide_index=True, height=180)
     else:
         st.dataframe(
             top[["","jersey","name","goals","assists","points"]],
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
             height=210
         )
@@ -1342,7 +1342,7 @@ def render_points_leaderboard(events: pd.DataFrame, players: pd.DataFrame, top_n
                 y=alt.Y("points:Q", title="Points"),
                 tooltip=["name","goals","assists","points"]
             ).properties(height=h)
-            st.altair_chart(chart_pts, use_container_width=True)
+            st.altair_chart(chart_pts, width="stretch")
         with c2:
             melted = top_for_chart.melt(
                 id_vars=["name","points"],
@@ -1356,12 +1356,12 @@ def render_points_leaderboard(events: pd.DataFrame, players: pd.DataFrame, top_n
                 color=alt.Color("Stat:N", title=""),
                 tooltip=["name","Stat","Value"]
             ).properties(height=h)
-            st.altair_chart(chart_breakdown, use_container_width=True)
+            st.altair_chart(chart_breakdown, width="stretch")
 
     with st.expander("View full team leaderboard"):
         st.dataframe(
             full[cols_full],
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
             height=420
         )
@@ -1525,7 +1525,7 @@ def render_set_piece_analysis_from_plays(plays_df: pd.DataFrame, matches: pd.Dat
 
     # ---- Table (unchanged) ----
     tbl = set_piece_leaderboard_from_plays(df)
-    st.dataframe(tbl, use_container_width=True, hide_index=True)
+    st.dataframe(tbl, width="stretch", hide_index=True)
 
     # ---- Chart (unchanged) ----
     if not tbl.empty:
@@ -1536,7 +1536,7 @@ def render_set_piece_analysis_from_plays(plays_df: pd.DataFrame, matches: pd.Dat
             color=alt.Color("set_piece:N", title="Type"),
             tooltip=list(tbl.columns),
         ).properties(height=280)
-        st.altair_chart(chart, use_container_width=True)
+        st.altair_chart(chart, width="stretch")
 
     # ---- AI Insights ----
     state_key = "ai_set_piece_summary"
@@ -1601,7 +1601,7 @@ def render_goals_allowed_analysis(ga_df: pd.DataFrame,
 
     cols_show = [c for c in ["date","opponent","minute","minute_bucket","situation","goalie_name","description","goal_id"] if c in view.columns]
     st.dataframe(view[cols_show].sort_values(["date","minute"], ascending=[True, True]),
-                 use_container_width=True, hide_index=True, height=320)
+                 width="stretch", hide_index=True, height=320)
     # CSV download for goals allowed table
     try:
         csv = view[cols_show].to_csv(index=False).encode('utf-8')
@@ -1654,8 +1654,8 @@ def render_goals_allowed_analysis(ga_df: pd.DataFrame,
         tooltip=["goalie_name","count"]
     ).properties(height=h)
 
-    st.altair_chart(chart_sit | chart_min, use_container_width=True)
-    st.altair_chart(chart_gk, use_container_width=True)
+    st.altair_chart(chart_sit | chart_min, width="stretch")
+    st.altair_chart(chart_gk, width="stretch")
 
     state_key = "ai_conceded_summary"
     error_key = "ai_conceded_error"
