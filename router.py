@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from pages.game import render_game_drilldown
-from pages.home import HomeHandlers, render_home
+from app_pages.game import render_game_drilldown
+from app_pages.home import HomeHandlers, render_home
 
 
 def route(*, ctx, handlers: HomeHandlers) -> None:

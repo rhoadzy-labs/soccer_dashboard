@@ -17,7 +17,7 @@ import altair as alt
 import pandas as pd
 import streamlit as st
 
-from pages.home import HomeHandlers, render_home
+from app_pages.home import HomeHandlers, render_home
 import requests
 from dotenv import load_dotenv
 

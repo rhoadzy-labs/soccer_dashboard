@@ -15,11 +15,11 @@ from typing import Callable, Optional
 import pandas as pd
 import streamlit as st
 
-from pages.home_tabs.games import render_home_tab_games
-from pages.home_tabs.goals_allowed import render_home_tab_goals_allowed
-from pages.home_tabs.leaders import render_home_tab_leaders
-from pages.home_tabs.set_pieces import render_home_tab_set_pieces
-from pages.home_tabs.trends import render_home_tab_trends
+from app_pages.home_tabs.games import render_home_tab_games
+from app_pages.home_tabs.goals_allowed import render_home_tab_goals_allowed
+from app_pages.home_tabs.leaders import render_home_tab_leaders
+from app_pages.home_tabs.set_pieces import render_home_tab_set_pieces
+from app_pages.home_tabs.trends import render_home_tab_trends
 
 
 @dataclass(frozen=True)
