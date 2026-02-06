@@ -1859,37 +1859,40 @@ try:
 except Exception:
     our_rank = None
 
-# Routing
-if match_id:
-    render_game_drilldown(match_id, matches_view, players, events_view, plays_view, summaries)
-else:
-    handlers = HomeHandlers(
-        team_kpis=_team_kpis,
-        render_games_table=render_games_table,
-        render_points_leaderboard=render_points_leaderboard,
-        render_goals_allowed_analysis=render_goals_allowed_analysis,
-        render_set_piece_analysis_from_plays=render_set_piece_analysis_from_plays,
-        build_comparison_trend_frame=build_comparison_trend_frame,
-        build_individual_game_trends=build_individual_game_trends,
-        generate_ai_team_analysis=generate_ai_team_analysis,
-        ai_user_error_message=_ai_user_error_message,
-        render_ai_debug=_render_ai_debug,
-    )
+from app_context import AppContext
+from router import route
 
-    render_home(
-        title="Milton Varsity Boys Soccer Team 2025",
-        matches=matches,
-        players=players,
-        events=events,
-        plays_simple=plays_simple,
-        summaries=summaries,
-        goals_allowed=goals_allowed,
-        matches_view=matches_view,
-        events_view=events_view,
-        plays_view=plays_view,
-        ga_view=ga_view,
-        our_rank=our_rank,
-        compact=compact,
-        handlers=handlers,
-    )
+# Routing
+ctx = AppContext(
+    compact=compact,
+    div_only=div_only,
+    matches=matches,
+    players=players,
+    events=events,
+    plays_simple=plays_simple,
+    summaries=summaries,
+    goals_allowed=goals_allowed,
+    matches_view=matches_view,
+    events_view=events_view,
+    plays_view=plays_view,
+    ga_view=ga_view,
+    match_id=match_id,
+    our_rank=our_rank,
+)
+
+handlers = HomeHandlers(
+    team_kpis=_team_kpis,
+    render_games_table=render_games_table,
+    render_points_leaderboard=render_points_leaderboard,
+    render_goals_allowed_analysis=render_goals_allowed_analysis,
+    render_set_piece_analysis_from_plays=render_set_piece_analysis_from_plays,
+    render_game_drilldown=render_game_drilldown,
+    build_comparison_trend_frame=build_comparison_trend_frame,
+    build_individual_game_trends=build_individual_game_trends,
+    generate_ai_team_analysis=generate_ai_team_analysis,
+    ai_user_error_message=_ai_user_error_message,
+    render_ai_debug=_render_ai_debug,
+)
+
+route(ctx=ctx, handlers=handlers)
 
