@@ -15,6 +15,7 @@ from typing import Callable, Optional
 import pandas as pd
 import streamlit as st
 
+from pages.home_tabs.goals_allowed import render_home_tab_goals_allowed
 from pages.home_tabs.leaders import render_home_tab_leaders
 from pages.home_tabs.trends import render_home_tab_trends
 
@@ -192,7 +193,13 @@ def render_home(
         )
 
     elif selected_tab == "Goals Allowed":
-        handlers.render_goals_allowed_analysis(ga_view, matches_view, players, compact=compact)
+        render_home_tab_goals_allowed(
+            ga_view,
+            matches_view,
+            players,
+            compact=compact,
+            render_goals_allowed_analysis=handlers.render_goals_allowed_analysis,
+        )
 
     elif selected_tab == "Set Pieces":
         handlers.render_set_piece_analysis_from_plays(plays_view, matches_view, players)
