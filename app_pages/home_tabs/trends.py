@@ -24,7 +24,7 @@ def render_home_tab_trends(
         # Display comparison table
         st.dataframe(
             comparison_df.round(2),
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
             height=200,
         )
@@ -48,7 +48,7 @@ def render_home_tab_trends(
             color=alt.Color("Period:N", title="Period"),
             tooltip=["Metric", "Period", "Value"],
         ).properties(height=h)
-        st.altair_chart(comparison_chart, use_container_width=True)
+        st.altair_chart(comparison_chart, width="stretch")
 
         st.subheader("Individual Game Performance")
 
@@ -79,4 +79,4 @@ def render_home_tab_trends(
             ).properties(height=h)
 
             final_chart = (chart + trend_line).resolve_scale(color="independent")
-            st.altair_chart(final_chart, use_container_width=True)
+            st.altair_chart(final_chart, width="stretch")

@@ -36,7 +36,7 @@ def render_coach_notes_and_summary(
         show = srow.drop(labels=[c for c in ["match_id"] if c in srow.index])
         nice = show.rename(index=lambda k: k.replace("_", " ").title())
         st.markdown("**Coach Notes (from sheet)**")
-        st.dataframe(nice.to_frame("Value"), use_container_width=True, hide_index=False, height=280)
+        st.dataframe(nice.to_frame("Value"), width="stretch", hide_index=False, height=280)
     else:
         st.info("No coach notes yet for this game. Add a row in the `summary` tab with this match_id.")
 
@@ -132,7 +132,7 @@ def render_game_drilldown(
         view = view.sort_values(["points", "goals", "shots"], ascending=[False, False, False])
 
     st.subheader("Per-Player Breakdown")
-    st.dataframe(view, use_container_width=True, hide_index=True)
+    st.dataframe(view, width="stretch", hide_index=True)
 
     st.subheader("Set-Play Attempts (this game)")
     sp = plays_df.query("match_id == @match_id") if not plays_df.empty else pd.DataFrame()
@@ -142,7 +142,7 @@ def render_game_drilldown(
         cols = [c for c in ["set_piece", "play_call_id", "play_type", "taker_notes", "goal_created"] if c in sp.columns]
         df_show = sp[cols].rename(columns={"play_call_id": "Play Call"})
         df_show = df_show[["set_piece", "Play Call", "play_type", "taker_notes", "goal_created"]]
-        st.dataframe(df_show, use_container_width=True, hide_index=True)
+        st.dataframe(df_show, width="stretch", hide_index=True)
 
     st.divider()
     render_coach_notes_and_summary(
