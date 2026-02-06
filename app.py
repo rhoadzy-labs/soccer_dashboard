@@ -1812,90 +1812,43 @@ plays_simple = load_plays_simple(SPREADSHEET_KEY)
 summaries = load_summaries(SPREADSHEET_KEY)
 goals_allowed = load_goals_allowed(SPREADSHEET_KEY)
 
+from data.views import apply_match_filters, derive_related_views, get_match_id
+from ui.sidebar import render_sidebar
+
 
 # Sidebar (clean labels)
-with st.sidebar:
-    st.title("HS Soccer")
-    if st.button("Dashboard (Home)"):
-        _qparams_set(); st.rerun()
-
-    # Read qp for initial toggle values
-    qp_init = _qparams_get()
-    COMPACT_DEFAULT = True
-    compact_init = _qp_bool(qp_init.get("compact"), COMPACT_DEFAULT)
-    div_only_init = _qp_bool(qp_init.get("div_only"), False)
-
-    compact = st.toggle("Compact mode", value=compact_init, help="Phone-friendly layout")
-    div_only = st.checkbox("Division games only", value=div_only_init)
-
-    # Global filters
-    st.subheader("Filters")
-    opponent_q = st.text_input("Opponent contains", value=str(qp_init.get("opp","")))
-    ha_opt = st.selectbox("Home/Away", ["Any","Home","Away"], index={"any":0,"home":1,"away":2}.get(str(qp_init.get("ha","any")).lower(),0))
-
-    st.link_button("Open Schedule", SBLIVE_SCHEDULE_URL)
-    st.link_button("Open Rankings (D2)", SBLIVE_RANKINGS_URL)
-
-    # Sync toggles/filters to query params only when they differ
-    try:
-        desired = {
-            "compact": str(compact).lower(),
-            "div_only": str(div_only).lower(),
-            "opp": opponent_q.strip(),
-            # Store full text so "Any" is not mistaken for Away
-            "ha": ha_opt.lower() if ha_opt else "any",
-        }
-
-        # Only update if any difference
-        diffs = []
-        for k, v in desired.items():
-            curv = qp_init.get(k)
-            if isinstance(curv, list): curv = curv[0] if curv else None
-            if (curv or "") != (v or ""):
-                diffs.append(k)
-        if diffs:
-            _qparams_merge_update(**desired)
-            st.rerun()
-    except Exception:
-        pass
+compact, div_only = render_sidebar(
+    qparams_get=_qparams_get,
+    qp_bool=_qp_bool,
+    qparams_set=_qparams_set,
+    qparams_merge_update=_qparams_merge_update,
+    schedule_url=SBLIVE_SCHEDULE_URL,
+    rankings_url=SBLIVE_RANKINGS_URL,
+)
 
 # Apply filters (division/date/opponent/H-A)
-matches_view = matches.copy()
-if div_only and not matches_view.empty and "division_game" in matches_view:
-    matches_view = matches_view.query("division_game == True")
-
 qp = _qparams_get()
-opp_filter = str(qp.get("opp",""))
-if isinstance(opp_filter, list): opp_filter = opp_filter[0]
-opp_filter = opp_filter.strip()
-if opp_filter and not matches_view.empty and "opponent" in matches_view:
-    matches_view = matches_view[matches_view["opponent"].astype(str).str.contains(opp_filter, case=False, na=False)]
+opp_filter = str(qp.get("opp", ""))
+if isinstance(opp_filter, list):
+    opp_filter = opp_filter[0]
 
-ha_val = str(qp.get("ha","any")).lower()
-if isinstance(ha_val, list): ha_val = ha_val[0]
-if ha_val in ("h","home","a","away") and not matches_view.empty and "home_away" in matches_view:
-    want = "H" if ha_val.startswith("h") else "A"
-    matches_view = matches_view[matches_view["home_away"].astype(str).str.upper() == want]
+ha_val = str(qp.get("ha", "any")).lower()
+if isinstance(ha_val, list):
+    ha_val = ha_val[0]
 
-
+matches_view = apply_match_filters(matches, div_only=div_only, opp_filter=opp_filter, ha_val=ha_val)
 
 # Derive related views by match_id
-if not matches_view.empty and "match_id" in matches_view:
-    keep = set(matches_view["match_id"].astype(str))
-    events_view = events[events["match_id"].astype(str).isin(keep)] if "match_id" in events.columns else events
-    plays_view  = plays_simple[plays_simple["match_id"].astype(str).isin(keep)] if not plays_simple.empty else plays_simple
-    ga_view     = goals_allowed[goals_allowed["match_id"].astype(str).isin(keep)] if not goals_allowed.empty else goals_allowed
-else:
-    events_view, plays_view, ga_view = events, plays_simple, goals_allowed
+events_view, plays_view, ga_view = derive_related_views(
+    matches_view=matches_view,
+    events=events,
+    plays_simple=plays_simple,
+    goals_allowed=goals_allowed,
+)
 
 # Drill-in param
 qp = _qparams_get()
-match_id: Optional[str] = None
-try:
-    raw = qp.get("match_id")
-    match_id = raw[0] if isinstance(raw, list) else raw
-except Exception:
-    pass
+match_id = get_match_id(qp)
 
 # D2 rank (KPI only)
 our_rank = None
