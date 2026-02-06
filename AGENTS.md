@@ -1,16 +1,34 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `app.py`: Streamlit UI, dashboard pages, and AI insights entry points.
+- `app.py`: App entrypoint/wiring (loads data, calls sidebar, builds context, routes).
+- `app_context.py`: `AppContext` dataclass (loaded tables + filtered views + routing info).
+- `router.py`: `route(ctx, handlers)` selects drilldown vs home.
+- `app_pages/`: Internal page modules (NOT Streamlit multipage).
+  - `app_pages/home.py`: Home page renderer + tab dispatch.
+  - `app_pages/home_tabs/`: Individual home tabs (Games/Trends/Leaders/Goals Allowed/Set Pieces).
+  - `app_pages/game.py`: Match drilldown page.
+- `ui/sidebar.py`: Sidebar + query-param sync.
+- `data/views.py`: Match filtering + derived views.
 - `google_sheets_adapter.py`: Google Sheets data access and transformations.
+- `loaders.py`: Cached loaders for each sheet.
 - `requirements.txt`: Python dependencies for local and cloud runs.
 - `README.md`: Setup, data schema, and deployment notes.
+- `docs/`: Docs and schema snapshots.
 - `__pycache__/`: Local bytecode artifacts (do not edit or commit).
 
+### Important (Streamlit)
+- Do **not** create a top-level folder named `pages/`. Streamlit treats it as multipage navigation and will add unexpected sidebar items. Use `app_pages/` for internal routing modules.
+
 ## Build, Test, and Development Commands
+- `python -m venv .venv && source .venv/bin/activate`: Create/activate a venv (recommended).
 - `pip install -r requirements.txt`: Install Python dependencies.
 - `streamlit run app.py`: Launch the dashboard locally.
-- (Optional) `python -m venv .venv` then `source .venv/bin/activate`: Isolate local deps if needed.
+- Smoke test checklist (recommended before merging to `main`):
+  - Home loads
+  - All tabs render
+  - Filters update + persist in query params
+  - Drilldown via `?match_id=...` works + Back to Dashboard works
 
 ## Coding Style & Naming Conventions
 - Python 3.8+ codebase; keep indentation at 4 spaces.
@@ -24,9 +42,11 @@
 - External fetches: SBLive rankings/schedule are optional enrichments and should not block the core UI.
 
 ## Testing Guidelines
-- No automated test suite is present in this repo.
+- CI is intentionally lightweight (GitHub Actions): installs deps + `python -m py_compile ...`.
+- No automated runtime/UI test suite is present in this repo yet.
 - If you add tests, place them under `tests/` and name files `test_*.py`.
-- Suggested frameworks: `pytest` for unit tests and `streamlit`-oriented smoke tests.
+- Suggested frameworks: `pytest` for unit tests.
+- Streamlit interactions are validated via the smoke test checklist above (Jetson is the preferred environment).
 
 ## Commit & Pull Request Guidelines
 - Recent commits use short, lowercase summaries (e.g., “kpi fixes”, “fix home game bug”).

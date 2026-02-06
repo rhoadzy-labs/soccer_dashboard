@@ -68,5 +68,7 @@ def read_sheet_to_df(spreadsheet_key_or_url: str, worksheet_name: str) -> pd.Dat
         return pd.DataFrame()
 
     df = pd.DataFrame(rows, columns=[str(c).strip() for c in header])
-    df = df.applymap(lambda x: x.strip() if isinstance(x, str) else x)
+
+    # Strip whitespace from string cells. (applymap is deprecated; use DataFrame.map)
+    df = df.map(lambda x: x.strip() if isinstance(x, str) else x)
     return df
