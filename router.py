@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pages.game import render_game_drilldown
 from pages.home import HomeHandlers, render_home
 
 
@@ -10,15 +11,18 @@ def route(*, ctx, handlers: HomeHandlers) -> None:
     """
 
     if ctx.match_id:
-        # Keep existing drilldown renderer + signature (lives in app.py for now).
-        # The caller passes the function in as handlers via closure.
-        handlers.render_game_drilldown(
-            ctx.match_id,
-            ctx.matches_view,
-            ctx.players,
-            ctx.events_view,
-            ctx.plays_view,
-            ctx.summaries,
+        render_game_drilldown(
+            match_id=ctx.match_id,
+            matches=ctx.matches_view,
+            players=ctx.players,
+            events=ctx.events_view,
+            plays_df=ctx.plays_view,
+            summaries=ctx.summaries,
+            qparams_set=handlers.qparams_set,
+            format_date=handlers.format_date,
+            generate_ai_game_summary=handlers.generate_ai_game_summary,
+            ai_user_error_message=handlers.ai_user_error_message,
+            render_ai_debug=handlers.render_ai_debug,
         )
         return
 

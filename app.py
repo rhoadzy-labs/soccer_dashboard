@@ -1567,36 +1567,6 @@ def render_set_piece_analysis_from_plays(plays_df: pd.DataFrame, matches: pd.Dat
 
 
 
-def render_coach_notes_and_summary(match_id: str,
-                                   matches: pd.DataFrame,
-                                   summaries: pd.DataFrame,
-                                   events: pd.DataFrame):
-    st.subheader("Coach Notes & Summary")
-    mrow = matches.loc[matches["match_id"] == match_id]
-    m = mrow.iloc[0] if not mrow.empty else pd.Series(dtype=object)
-
-    srow = None
-    if not summaries.empty and "match_id" in summaries.columns:
-        srow_df = summaries.loc[summaries["match_id"] == str(match_id)]
-        if not srow_df.empty:
-            srow = srow_df.iloc[0]
-
-    if srow is not None:
-        show = srow.drop(labels=[c for c in ["match_id"] if c in srow.index])
-        nice = show.rename(index=lambda k: k.replace("_", " ").title())
-        st.markdown("**Coach Notes (from sheet)**")
-        st.dataframe(nice.to_frame("Value"), use_container_width=True, hide_index=False, height=280)
-    else:
-        st.info("No coach notes yet for this game. Add a row in the `summary` tab with this match_id.")
-
-    ai_txt = generate_ai_game_summary(m, srow, events)
-    if ai_txt:
-        st.markdown("**AI Game Summary**")
-        st.write(ai_txt)
-    else:
-        st.caption(_ai_user_error_message("AI summary unavailable (no Gemini key set or not enough context)."))
-        _render_ai_debug()
-
 def render_goals_allowed_analysis(ga_df: pd.DataFrame,
                                   matches: pd.DataFrame,
                                   players: pd.DataFrame,
@@ -1713,95 +1683,6 @@ def render_goals_allowed_analysis(ga_df: pd.DataFrame,
         st.caption(_ai_user_error_message(conceded_error))
         _render_ai_debug()
 
-def render_game_drilldown(match_id: str, matches: pd.DataFrame, players: pd.DataFrame, events: pd.DataFrame, plays_df: pd.DataFrame, summaries: pd.DataFrame):
-    row = matches.loc[matches["match_id"] == match_id]
-    if row.empty:
-        st.error("Match not found.")
-        if st.button("Back to Dashboard"):
-            _qparams_set(); st.rerun()
-        return
-    m = row.iloc[0]
-    st.header(f"Game View – {_format_date(m.get('date',''))} vs {m.get('opponent','')} ({m.get('home_away','')})")
-    st.caption(f"Division: {'Yes' if m.get('division_game', False) else 'No'} | Result: {m.get('result','')} | Score: {m.get('goals_for','')}-{m.get('goals_against','')}")
-    
-    # ============================================================================
-    # GAME RECORDING URL DISPLAY
-    # ============================================================================
-    # Check for game recording URL in multiple possible column names from Google Sheets
-    # Supports: 'url', 'recording_url', 'game_url', 'video_url', 'link'
-    url = None
-    for url_col in ['url', 'recording_url', 'game_url', 'video_url', 'link']:
-        if m.get(url_col) and str(m.get(url_col)).strip():
-            url = str(m.get(url_col)).strip()
-            break
-    
-    if url:
-        # Auto-add https:// protocol if missing for proper link functionality
-        if not url.startswith(('http://', 'https://')):
-            url = 'https://' + url
-            
-        # Display styled recording link with blue info box design
-        st.markdown(f"""
-        <div style="
-            background: #f0f8ff; 
-            border: 1px solid #4a90e2; 
-            border-radius: 8px; 
-            padding: 12px; 
-            margin: 8px 0;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        ">
-            <span style="font-size: 18px;">📹</span>
-            <div>
-                <strong style="color: #2c3e50;">Game Recording Available</strong><br>
-                <a href="{url}" target="_blank" style="color: #4a90e2; text-decoration: none; font-weight: 500;" title="Click to open game recording in a new tab">
-                    🎥 Watch Game Recording →
-                </a>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    else:
-        # Show info message when no recording URL is available
-        # Note: Both cases show same message for consistency (removed technical details)
-        st.info("📹 No game recording available for this match.")
-
-    by_player = (events.query("match_id == @match_id").copy()
-                 if "match_id" in events.columns else pd.DataFrame())
-    if by_player.empty:
-        base = players[["player_id","name","jersey","position"]].copy()
-        base["shots"]=base["goals"]=base["assists"]=base["points"]=0
-        view = base[["jersey","name","position","shots","goals","assists","points"]]
-    else:
-        sums = by_player.groupby("player_id", as_index=False)[["shots","goals","assists"]].sum()
-        sums["points"] = 2*sums["goals"] + sums["assists"]
-        view = sums.set_index("player_id").join(
-            players.set_index("player_id")[["name","jersey","position"]], how="left"
-        ).fillna({"name":"Unknown","position":"","jersey":0})
-        view = view.reset_index()[["jersey","name","position","shots","goals","assists","points"]]
-        view = view.sort_values(["points","goals","shots"], ascending=[False,False,False])
-
-    st.subheader("Per-Player Breakdown")
-    st.dataframe(view, use_container_width=True, hide_index=True)
-
-    st.subheader("Set-Play Attempts (this game)")
-    sp = plays_df.query("match_id == @match_id") if not plays_df.empty else pd.DataFrame()
-    if sp.empty:
-        st.info("No set-play rows for this match.")
-    else:
-        cols = [c for c in ["set_piece","play_call_id","play_type","taker_notes","goal_created"] if c in sp.columns]
-        df_show = sp[cols].rename(columns={"play_call_id":"Play Call"})
-        df_show = df_show[["set_piece","Play Call","play_type","taker_notes","goal_created"]]
-        st.dataframe(df_show, use_container_width=True, hide_index=True)
-
-    st.divider()
-    render_coach_notes_and_summary(match_id, matches, summaries, events)
-
-    st.divider()
-    c1,c2 = st.columns([1,1])
-    if c1.button("Back to Dashboard"): _qparams_set(); st.rerun()
-    c2.markdown(f"[Open this game in a new tab](?match_id={match_id})")
-
 # ---------------------------------------------------------------------
 # MAIN
 # ---------------------------------------------------------------------
@@ -1887,6 +1768,9 @@ handlers = HomeHandlers(
     render_goals_allowed_analysis=render_goals_allowed_analysis,
     render_set_piece_analysis_from_plays=render_set_piece_analysis_from_plays,
     render_game_drilldown=render_game_drilldown,
+    qparams_set=_qparams_set,
+    format_date=_format_date,
+    generate_ai_game_summary=generate_ai_game_summary,
     build_comparison_trend_frame=build_comparison_trend_frame,
     build_individual_game_trends=build_individual_game_trends,
     generate_ai_team_analysis=generate_ai_team_analysis,

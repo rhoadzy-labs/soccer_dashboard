@@ -30,8 +30,11 @@ class HomeHandlers:
     render_goals_allowed_analysis: Callable[..., None]
     render_set_piece_analysis_from_plays: Callable[..., None]
 
-    # Drilldown page entrypoint (still defined in app.py for now)
+    # Drilldown page entrypoint and its injected helpers
     render_game_drilldown: Callable[..., None]
+    qparams_set: Callable[..., None]
+    format_date: Callable[..., str]
+    generate_ai_game_summary: Callable[..., str]
 
     build_comparison_trend_frame: Callable[..., pd.DataFrame]
     build_individual_game_trends: Callable[..., pd.DataFrame]
