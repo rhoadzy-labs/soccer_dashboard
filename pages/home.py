@@ -178,34 +178,35 @@ def render_home(
             st.session_state.ai_chat_history = []
             st.rerun()
 
-    elif selected_tab == "Trends":
-        render_home_tab_trends(
-            matches_view,
-            compact=compact,
-            build_comparison_trend_frame=handlers.build_comparison_trend_frame,
-            build_individual_game_trends=handlers.build_individual_game_trends,
-        )
-    elif selected_tab == "Leaders":
-        render_home_tab_leaders(
-            events_view,
-            players,
-            compact=compact,
-            render_points_leaderboard=handlers.render_points_leaderboard,
-        )
+    else:
+        tab_renderers = {
+            "Trends": lambda: render_home_tab_trends(
+                matches_view,
+                compact=compact,
+                build_comparison_trend_frame=handlers.build_comparison_trend_frame,
+                build_individual_game_trends=handlers.build_individual_game_trends,
+            ),
+            "Leaders": lambda: render_home_tab_leaders(
+                events_view,
+                players,
+                compact=compact,
+                render_points_leaderboard=handlers.render_points_leaderboard,
+            ),
+            "Goals Allowed": lambda: render_home_tab_goals_allowed(
+                ga_view,
+                matches_view,
+                players,
+                compact=compact,
+                render_goals_allowed_analysis=handlers.render_goals_allowed_analysis,
+            ),
+            "Set Pieces": lambda: render_home_tab_set_pieces(
+                plays_view,
+                matches_view,
+                players,
+                render_set_piece_analysis_from_plays=handlers.render_set_piece_analysis_from_plays,
+            ),
+        }
 
-    elif selected_tab == "Goals Allowed":
-        render_home_tab_goals_allowed(
-            ga_view,
-            matches_view,
-            players,
-            compact=compact,
-            render_goals_allowed_analysis=handlers.render_goals_allowed_analysis,
-        )
-
-    elif selected_tab == "Set Pieces":
-        render_home_tab_set_pieces(
-            plays_view,
-            matches_view,
-            players,
-            render_set_piece_analysis_from_plays=handlers.render_set_piece_analysis_from_plays,
-        )
+        renderer = tab_renderers.get(selected_tab)
+        if renderer:
+            renderer()
