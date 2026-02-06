@@ -30,6 +30,9 @@ class HomeHandlers:
     render_goals_allowed_analysis: Callable[..., None]
     render_set_piece_analysis_from_plays: Callable[..., None]
 
+    # Drilldown page entrypoint (still defined in app.py for now)
+    render_game_drilldown: Callable[..., None]
+
     build_comparison_trend_frame: Callable[..., pd.DataFrame]
     build_individual_game_trends: Callable[..., pd.DataFrame]
 
