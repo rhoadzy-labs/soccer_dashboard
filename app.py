@@ -33,7 +33,7 @@ from loaders import (
     load_goals_allowed,
 )
 
-# Optional Gemini import (guarded)
+# Optional Groq import (guarded)
 try:
     from groq import Groq
 except Exception:
@@ -1567,7 +1567,7 @@ def render_set_piece_analysis_from_plays(plays_df: pd.DataFrame, matches: pd.Dat
             st.session_state[error_key] = None
         else:
             st.session_state[state_key] = None
-            st.session_state[error_key] = "AI summary unavailable (no Gemini key set or not enough context)."
+            st.session_state[error_key] = "AI summary unavailable (no Groq key set or not enough context)."
 
     summary_text = st.session_state.get(state_key)
     summary_error = st.session_state.get(error_key)
@@ -1685,7 +1685,7 @@ def render_goals_allowed_analysis(ga_df: pd.DataFrame,
             st.session_state[error_key] = None
         else:
             st.session_state[state_key] = None
-            st.session_state[error_key] = "AI summary unavailable (no Gemini key set or not enough context)."
+            st.session_state[error_key] = "AI summary unavailable (no Groq key set or not enough context)."
 
     conceded_summary = st.session_state.get(state_key)
     conceded_error = st.session_state.get(error_key)
