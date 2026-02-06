@@ -33,11 +33,35 @@ from loaders import (
     load_goals_allowed,
 )
 
-# Optional Gemini import (guarded)
+# Optional Groq import (guarded)
 try:
-    import google.generativeai as genai
+    from groq import Groq
 except Exception:
-    genai = None
+    Groq = None
+
+
+def _groq_chat(system_prompt: str, user_prompt: str, *, temperature: float = 0.2) -> str:
+    """Return a chat completion from Groq.
+
+    Expects GROQ_API_KEY in env/secrets. Raises on failure.
+    """
+    api_key = os.getenv("GROQ_API_KEY", "").strip()
+    if not api_key:
+        raise RuntimeError("Missing GROQ_API_KEY")
+    if Groq is None:
+        raise RuntimeError("groq package not installed")
+
+    client = Groq(api_key=api_key)
+    completion = client.chat.completions.create(
+        model=os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"),
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        temperature=temperature,
+    )
+    return (completion.choices[0].message.content or "").strip()
+
 
 # ---------------------------------------------------------------------
 # CONFIG
@@ -79,7 +103,7 @@ load_dotenv()
 # Streamlit Secrets fallback (for Cloud)
 try:
     SPREADSHEET_KEY = os.getenv("SPREADSHEET_KEY") or st.secrets.get("SPREADSHEET_KEY", "YOUR_SPREADSHEET_KEY_OR_URL")
-    for _k in ["GEMINI_API_KEY", "APP_PASSWORD", "GOOGLE_SERVICE_ACCOUNT_JSON"]:
+    for _k in ["GROQ_API_KEY", "APP_PASSWORD", "GOOGLE_SERVICE_ACCOUNT_JSON"]:
         if not os.getenv(_k) and _k in st.secrets:
             os.environ[_k] = st.secrets[_k]
 except Exception:
@@ -573,18 +597,15 @@ def build_individual_game_trends(matches: pd.DataFrame) -> pd.DataFrame:
 def generate_ai_game_summary(match_row: pd.Series,
                              notes_row: Optional[pd.Series],
                              events: pd.DataFrame) -> Optional[str]:
-    api_key = os.getenv("GEMINI_API_KEY", "").strip()
-    if not api_key or genai is None:
+    api_key = os.getenv("GROQ_API_KEY", "").strip()
+    if not api_key or Groq is None:
         if DEBUG_AI:
             _record_ai_error(
                 "generate_ai_game_summary",
-                Exception("Missing GEMINI_API_KEY or google.generativeai import failed"),
+                Exception("Missing GROQ_API_KEY or groq import failed"),
             )
         return None
     try:
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel("gemini-2.0-flash-lite")
-
         gf = int(match_row.get("goals_for", 0))
         ga = int(match_row.get("goals_against", 0))
         shots = int(match_row.get("shots_for", match_row.get("shots", 0)))
@@ -623,8 +644,8 @@ def generate_ai_game_summary(match_row: pd.Series,
             ],
         }
 
-        resp = model.generate_content([sys, str(user)])
-        text = getattr(resp, "text", "").strip()
+        
+        text = _groq_chat(sys, str(user), temperature=0.2)
         return text or None
     except Exception as e:
         _record_ai_error("generate_ai_game_summary", e)
@@ -634,18 +655,15 @@ def generate_ai_game_summary(match_row: pd.Series,
 def generate_ai_conceded_summary(ga_df: pd.DataFrame,
                                  matches: pd.DataFrame,
                                  players: pd.DataFrame) -> Optional[str]:
-    api_key = os.getenv("GEMINI_API_KEY", "").strip()
-    if not api_key or genai is None:
+    api_key = os.getenv("GROQ_API_KEY", "").strip()
+    if not api_key or Groq is None:
         if DEBUG_AI:
             _record_ai_error(
                 "generate_ai_conceded_summary",
-                Exception("Missing GEMINI_API_KEY or google.generativeai import failed"),
+                Exception("Missing GROQ_API_KEY or groq import failed"),
             )
         return None
     try:
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel("gemini-2.0-flash-lite")
-
         pl = players.set_index("player_id") if "player_id" in players.columns else pd.DataFrame()
         mx = matches.set_index("match_id") if "match_id" in matches.columns else pd.DataFrame()
 
@@ -684,8 +702,9 @@ def generate_ai_conceded_summary(ga_df: pd.DataFrame,
             f"DATA: {context}"
         )
 
-        resp = model.generate_content(prompt)
-        return getattr(resp, "text", "").strip() or None
+        
+        text = _groq_chat("You are a concise assistant that summarizes soccer match data for a coach. Use bullet points when helpful.", prompt, temperature=0.2)
+        return text or None
     except Exception as e:
         _record_ai_error("generate_ai_conceded_summary", e)
         return None
@@ -698,19 +717,16 @@ def generate_ai_team_analysis(query: str,
                              plays_df: pd.DataFrame,
                              goals_allowed: pd.DataFrame) -> Optional[str]:
     """Generate AI analysis based on user query about team performance."""
-    api_key = os.getenv("GEMINI_API_KEY", "").strip()
-    if not api_key or genai is None:
+    api_key = os.getenv("GROQ_API_KEY", "").strip()
+    if not api_key or Groq is None:
         if DEBUG_AI:
             _record_ai_error(
                 "generate_ai_team_analysis",
-                Exception("Missing GEMINI_API_KEY or google.generativeai import failed"),
+                Exception("Missing GROQ_API_KEY or groq import failed"),
             )
         return None
     
     try:
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel("gemini-2.0-flash-lite")
-
         # Prepare comprehensive team data
         # Build top scorers with player names, not IDs
         top_scorers = []
@@ -777,8 +793,9 @@ def generate_ai_team_analysis(query: str,
         Please provide a comprehensive analysis addressing the user's question with specific insights from the data.
         """
 
-        resp = model.generate_content([system_prompt, user_prompt])
-        return getattr(resp, "text", "").strip() or None
+        
+        text = _groq_chat(system_prompt, user_prompt, temperature=0.2)
+        return text or None
     except Exception as e:
         _record_ai_error("generate_ai_team_analysis", e)
         return None
@@ -991,19 +1008,16 @@ def generate_ai_opponent_analysis(opponent_name: str,
                                  matches: pd.DataFrame,
                                  next_opponent_data: Optional[Dict[str, str]] = None) -> Optional[str]:
     """Generate AI analysis of upcoming opponent."""
-    api_key = os.getenv("GEMINI_API_KEY", "").strip()
-    if not api_key or genai is None:
+    api_key = os.getenv("GROQ_API_KEY", "").strip()
+    if not api_key or Groq is None:
         if DEBUG_AI:
             _record_ai_error(
                 "generate_ai_opponent_analysis",
-                Exception("Missing GEMINI_API_KEY or google.generativeai import failed"),
+                Exception("Missing GROQ_API_KEY or groq import failed"),
             )
         return None
     
     try:
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel("gemini-2.0-flash-lite")
-
         # Get historical data about opponent + simple prediction
         opponent_analysis = analyze_opponent_from_data(opponent_name, matches)
         prediction = predict_vs_opponent(matches, opponent_name)
@@ -1049,8 +1063,9 @@ def generate_ai_opponent_analysis(opponent_name: str,
         7. Use the provided season/recent/head-to-head metrics and the simple prediction to give a likely score range and preparation focus.
         """
 
-        resp = model.generate_content([system_prompt, user_prompt])
-        return getattr(resp, "text", "").strip() or None
+        
+        text = _groq_chat(system_prompt, user_prompt, temperature=0.2)
+        return text or None
     except Exception as e:
         _record_ai_error("generate_ai_opponent_analysis", e)
         return None
@@ -1059,19 +1074,16 @@ def generate_ai_opponent_analysis(opponent_name: str,
 def generate_ai_set_piece_summary(plays_df: pd.DataFrame,
                                   matches: pd.DataFrame,
                                   players: pd.DataFrame) -> Optional[str]:
-    api_key = os.getenv("GEMINI_API_KEY", "").strip()
-    if not api_key or genai is None:
+    api_key = os.getenv("GROQ_API_KEY", "").strip()
+    if not api_key or Groq is None:
         if DEBUG_AI:
             _record_ai_error(
                 "generate_ai_set_piece_summary",
-                Exception("Missing GEMINI_API_KEY or google.generativeai import failed"),
+                Exception("Missing GROQ_API_KEY or groq import failed"),
             )
         return None
     
     try:
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel("gemini-2.0-flash-lite")
-
         # Normalize data
         df = plays_df.copy()
         df.columns = [c.strip().lower() for c in df.columns]
@@ -1143,8 +1155,9 @@ def generate_ai_set_piece_summary(plays_df: pd.DataFrame,
             f"DATA: {context}"
         )
 
-        resp = model.generate_content(prompt)
-        return getattr(resp, "text", "").strip() or None
+        
+        text = _groq_chat("You are a concise assistant that summarizes soccer match data for a coach. Use bullet points when helpful.", prompt, temperature=0.2)
+        return text or None
     except Exception as e:
         _record_ai_error("generate_ai_set_piece_summary", e)
         return None
@@ -1554,7 +1567,7 @@ def render_set_piece_analysis_from_plays(plays_df: pd.DataFrame, matches: pd.Dat
             st.session_state[error_key] = None
         else:
             st.session_state[state_key] = None
-            st.session_state[error_key] = "AI summary unavailable (no Gemini key set or not enough context)."
+            st.session_state[error_key] = "AI summary unavailable (no Groq key set or not enough context)."
 
     summary_text = st.session_state.get(state_key)
     summary_error = st.session_state.get(error_key)
@@ -1672,7 +1685,7 @@ def render_goals_allowed_analysis(ga_df: pd.DataFrame,
             st.session_state[error_key] = None
         else:
             st.session_state[state_key] = None
-            st.session_state[error_key] = "AI summary unavailable (no Gemini key set or not enough context)."
+            st.session_state[error_key] = "AI summary unavailable (no Groq key set or not enough context)."
 
     conceded_summary = st.session_state.get(state_key)
     conceded_error = st.session_state.get(error_key)

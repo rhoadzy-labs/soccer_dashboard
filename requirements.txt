@@ -6,5 +6,5 @@ google-auth
 google-auth-oauthlib
 python-dotenv
 requests
-google-generativeai
 certifi
+groq
