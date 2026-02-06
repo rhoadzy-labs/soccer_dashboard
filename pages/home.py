@@ -15,6 +15,7 @@ from typing import Callable, Optional
 import pandas as pd
 import streamlit as st
 
+from pages.home_tabs.games import render_home_tab_games
 from pages.home_tabs.goals_allowed import render_home_tab_goals_allowed
 from pages.home_tabs.leaders import render_home_tab_leaders
 from pages.home_tabs.set_pieces import render_home_tab_set_pieces
@@ -87,97 +88,18 @@ def render_home(
     )
 
     if selected_tab == "Games":
-        handlers.render_games_table(matches_view, compact=compact)
-
-        st.divider()
-        st.subheader("AI Assistant")
-        st.caption("Ask questions about team performance and season trends")
-
-        if "ai_chat_history" not in st.session_state:
-            st.session_state.ai_chat_history = []
-
-        chat_container = st.container()
-        with chat_container:
-            for message in st.session_state.ai_chat_history:
-                if message["role"] == "user":
-                    st.markdown(
-                        f"""
-                    <div class='ai-chat-message ai-chat-user'>
-                        <strong>You:</strong> {message['content']}
-                    </div>
-                    """,
-                        unsafe_allow_html=True,
-                    )
-                else:
-                    st.markdown(
-                        f"""
-                    <div class='ai-chat-message ai-chat-assistant'>
-                        <strong>AI:</strong> {message['content']}
-                    </div>
-                    """,
-                        unsafe_allow_html=True,
-                    )
-
-        handlers.render_ai_debug()
-
-        c1, c2 = st.columns([4, 1])
-        with c1:
-            user_input = st.text_input(
-                "Ask a question about the team:",
-                placeholder="e.g., 'Summarize our season performance'",
-                key="ai_chat_input_games",
-            )
-        with c2:
-            send_button = st.button("Send", type="primary")
-
-        st.markdown("**Quick Actions:**")
-        q2, q3 = st.columns(2)
-        with q2:
-            if st.button("Season Summary", help="Get a comprehensive overview of your season"):
-                user_input = (
-                    "Provide a comprehensive summary of our season performance including strengths, "
-                    "weaknesses, and key insights"
-                )
-                send_button = True
-        with q3:
-            if st.button("Performance Trends", help="Analyze trends and identify improvement areas"):
-                user_input = "Analyze our performance trends and identify areas for improvement"
-                send_button = True
-
-        if send_button and user_input and user_input.strip():
-            st.session_state.ai_chat_history.append({"role": "user", "content": user_input})
-
-            with st.spinner("AI is analyzing..."):
-                ai_response = handlers.generate_ai_team_analysis(
-                    user_input,
-                    matches_view,
-                    players,
-                    events_view,
-                    plays_view,
-                    ga_view,
-                )
-
-            if ai_response:
-                st.session_state.ai_chat_history.append({"role": "assistant", "content": ai_response})
-            else:
-                st.session_state.ai_chat_history.append(
-                    {
-                        "role": "assistant",
-                        "content": (
-                            handlers.ai_user_error_message(
-                                "I'm sorry, I couldn't generate a response. "
-                                "Please make sure you have a Gemini API key configured and try again."
-                            )
-                        ),
-                    }
-                )
-
-            st.rerun()
-
-        if st.button("Clear Chat History"):
-            st.session_state.ai_chat_history = []
-            st.rerun()
-
+        render_home_tab_games(
+            matches_view,
+            players,
+            events_view,
+            plays_view,
+            ga_view,
+            compact=compact,
+            render_games_table=handlers.render_games_table,
+            generate_ai_team_analysis=handlers.generate_ai_team_analysis,
+            ai_user_error_message=handlers.ai_user_error_message,
+            render_ai_debug=handlers.render_ai_debug,
+        )
     else:
         tab_renderers = {
             "Trends": lambda: render_home_tab_trends(
