@@ -29,6 +29,23 @@ def _normalize_season_id(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+_RESULT_ALIASES = {
+    "w": "W",
+    "win": "W",
+    "won": "W",
+    "l": "L",
+    "loss": "L",
+    "lost": "L",
+    "d": "D",
+    "draw": "D",
+    "tie": "D",
+}
+
+
+def _normalize_result(value) -> str | None:
+    return _RESULT_ALIASES.get(str(value).strip().lower())
+
+
 @st.cache_data(ttl=300)
 def load_seasons(spreadsheet_key: str) -> pd.DataFrame:
     try:
@@ -62,10 +79,16 @@ def load_matches(spreadsheet_key: str) -> pd.DataFrame:
     ]:
         if c in df:
             df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0).astype(int)
+    score_result = None
     if {"goals_for", "goals_against"}.issubset(df):
-        df["result"] = df.apply(
+        score_result = df.apply(
             lambda r: "W" if r.goals_for > r.goals_against else ("L" if r.goals_for < r.goals_against else "D"), axis=1
         )
+    if "result" in df:
+        source_result = df["result"].map(_normalize_result)
+        df["result"] = source_result if score_result is None else source_result.fillna(score_result)
+    elif score_result is not None:
+        df["result"] = score_result
     if "match_id" not in df:
         df["match_id"] = df.index.astype(str)
     else:
